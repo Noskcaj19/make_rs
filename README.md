@@ -1,0 +1,1 @@
+A Rust crate for replacing Makefiles.

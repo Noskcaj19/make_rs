@@ -100,7 +100,7 @@ impl Maker {
         self
     }
 
-    pub fn make(self) {
+    pub fn make(mut self) {
         let target = match std::env::args().skip(1).next() {
             Some(cmd) => cmd,
             None => match &self.default {
@@ -112,16 +112,28 @@ impl Maker {
             },
         };
 
-        match self.commands.into_iter().find(|(cmd, _)| cmd == &target) {
-            Some((_, func)) => {
-                if let Err(err) = func() {
+        match self
+            .commands
+            .iter()
+            .enumerate()
+            .find(|(_, (cmd, _))| cmd == &target)
+        {
+            Some((i, _)) => {
+                if let Err(err) = self.commands.remove(i).1() {
                     eprintln!("An error occurred:");
                     eprintln!("{}", err);
                 }
             }
             None => {
-                eprintln!("Unknown command: {}", target);
-                return;
+                if &target == "help" {
+                    eprintln!("Available commands:");
+                    for (cmd, _) in self.commands {
+                        eprintln!("  {}", cmd);
+                    }
+                } else {
+                    eprintln!("Unknown command: {}", target);
+                    return;
+                }
             }
         }
     }

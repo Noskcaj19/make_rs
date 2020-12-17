@@ -2,6 +2,7 @@ pub use anyhow::Result;
 pub use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
+use std::ffi::OsStr;
 use std::process::ExitStatus;
 
 pub trait Target {
@@ -31,22 +32,27 @@ impl Target for glob::Paths {
     }
 }
 
-pub fn glob(pattern: &str) -> glob::Paths {
-    glob::glob(pattern).unwrap()
+pub fn glob<P: AsRef<str>>(pattern: P) -> glob::Paths {
+    glob::glob(pattern.as_ref()).unwrap()
 }
 
 pub fn create_dir<P: AsRef<Path>>(path: P) -> Result<()> {
     Ok(std::fs::create_dir_all(path.as_ref())?)
 }
 
-fn is_newer(target: &Path, base: &Path) -> Result<bool> {
-    let target_mtime = target.metadata()?.modified()?;
-    let base_mtime = base.metadata()?.modified()?;
+fn is_newer<T: AsRef<Path>, B: AsRef<Path>>(target: T, base: B) -> Result<bool> {
+    let target_mtime = target.as_ref().metadata()?.modified()?;
+    let base_mtime = base.as_ref().metadata()?.modified()?;
 
     Ok(target_mtime > base_mtime)
 }
 
-pub fn copy(src: impl Target<Item = impl AsRef<Path>>, dest: impl AsRef<Path>) -> Result<()> {
+pub fn copy<S, I, D>(src: S, dest: D) -> Result<()>
+where
+    S: Target<Item = I>,
+    I: AsRef<Path>,
+    D: AsRef<Path>,
+{
     for path in src.into_iter() {
         let dest = if dest.as_ref().is_dir() {
             dest.as_ref().join(
@@ -65,7 +71,11 @@ pub fn copy(src: impl Target<Item = impl AsRef<Path>>, dest: impl AsRef<Path>) -
     Ok(())
 }
 
-pub fn run(cmd: &str, args: &[&str]) -> Result<ExitStatus> {
+pub fn run<I, S>(cmd: &str, args: I) -> Result<ExitStatus>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
     Ok(std::process::Command::new(cmd)
         .args(args)
         .stdout(std::process::Stdio::inherit())
@@ -73,8 +83,8 @@ pub fn run(cmd: &str, args: &[&str]) -> Result<ExitStatus> {
         .status()?)
 }
 
-pub fn env_or(env: &str, default: &str) -> String {
-    std::env::var(env).unwrap_or(default.to_owned())
+pub fn env_or<K: AsRef<OsStr>, D: AsRef<str>>(env: K, default: D) -> String {
+    std::env::var(env).unwrap_or(default.as_ref().to_owned())
 }
 
 pub struct Maker {
@@ -90,13 +100,17 @@ impl Maker {
         }
     }
 
-    pub fn default(mut self, name: &str) -> Self {
-        self.default = Some(name.into());
+    pub fn default<S: AsRef<str>>(mut self, name: S) -> Self {
+        self.default = Some(name.as_ref().into());
         self
     }
 
-    pub fn cmd(mut self, name: &str, cmd: impl FnOnce() -> Result<()> + 'static) -> Self {
-        self.commands.push((name.into(), Box::new(cmd)));
+    pub fn cmd<S: AsRef<str>>(
+        mut self,
+        name: S,
+        cmd: impl FnOnce() -> Result<()> + 'static,
+    ) -> Self {
+        self.commands.push((name.as_ref().into(), Box::new(cmd)));
         self
     }
 

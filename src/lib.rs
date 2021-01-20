@@ -87,13 +87,13 @@ pub fn env_or<K: AsRef<OsStr>, D: AsRef<str>>(env: K, default: D) -> String {
     std::env::var(env).unwrap_or(default.as_ref().to_owned())
 }
 
-pub struct Maker {
-    commands: Vec<(String, Box<dyn FnOnce() -> Result<()>>)>,
+pub struct Maker<'a> {
+    commands: Vec<(String, Box<dyn FnOnce() -> Result<()> + 'a>)>,
     default: Option<String>,
 }
 
-impl Maker {
-    pub fn with() -> Maker {
+impl<'a> Maker<'a> {
+    pub fn with() -> Maker<'a> {
         Maker {
             commands: vec![],
             default: None,
@@ -105,11 +105,7 @@ impl Maker {
         self
     }
 
-    pub fn cmd<S: AsRef<str>>(
-        mut self,
-        name: S,
-        cmd: impl FnOnce() -> Result<()> + 'static,
-    ) -> Self {
+    pub fn cmd<S: AsRef<str>>(mut self, name: S, cmd: impl FnOnce() -> Result<()> + 'a) -> Self {
         self.commands.push((name.as_ref().into(), Box::new(cmd)));
         self
     }
